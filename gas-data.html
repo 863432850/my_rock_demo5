@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>煤气数据管理 · 双碳管理系统</title>
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<!--
+  煤气数据管理（数据采集管理 > 业务界面 > 煤气数据管理）
+
+  「一份日数据文件 = 一行」的档案视角：
+    查询条件：数据日期（范围查询）
+    列表按钮：只有「导入」→ 弹窗选 数据日期 + 上传文件 → 确认
+    列表列：数据日期(年月日) / 操作时间 / 原始文件(点击查看) / 操作(详情 / 删除)
+    详情弹窗：展示该文件解析出的数据表格
+
+  数据落在自己的 localStorage 键里（见 js/gas-data.js 的 GAS_ROW_KEY），
+  文件本体以 base64 存在行里（原型口径，单文件上限 4MB）。
+-->
+<body>
+  <div class="app-shell">
+    <header class="app-header" id="app-header"></header>
+    <div class="app-body">
+      <aside class="app-sidebar">
+        <nav class="sidebar-menu" id="sidebar-menu"></nav>
+      </aside>
+      <main class="app-main">
+        <div class="breadcrumb" id="breadcrumb"></div>
+        <div class="content-area">
+
+          <!-- 查询条件：数据日期（范围查询），两端都可清空，留空 = 不按该端过滤 -->
+          <div class="filter-bar">
+            <div class="filter-left">
+              <div class="filter-item">
+                <label for="gas-date-start">数据日期</label>
+                <div class="range-pair">
+                  <input type="date" id="gas-date-start" class="gas-date-input" />
+                  <span class="tilde">至</span>
+                  <input type="date" id="gas-date-end" class="gas-date-input" />
+                </div>
+              </div>
+              <div class="filter-actions">
+                <button type="button" class="btn btn-primary" id="gas-search">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+                  查询
+                </button>
+                <button type="button" class="btn" id="gas-reset">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+                  重置
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 数据列表 -->
+          <div class="section-card gas-card">
+            <div class="gas-card-head">
+              <div class="gas-head-actions">
+                <button type="button" class="btn btn-primary" id="gas-import">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 20h16"/>
+                  </svg>
+                  导入
+                </button>
+              </div>
+            </div>
+
+            <div class="table-wrap gas-table-wrap">
+              <table class="data-table gas-table">
+                <thead>
+                  <tr>
+                    <th class="gas-col-date">数据日期</th>
+                    <th class="gas-col-op">操作时间</th>
+                    <th class="gas-col-file">原始文件</th>
+                    <th class="gas-col-act">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="gas-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- 导入弹窗：选数据日期 + 上传文件 -->
+  <div class="modal-overlay" id="gas-import-modal">
+    <div class="modal gas-import-modal">
+      <div class="modal-header">
+        <h3>导入煤气数据</h3>
+        <button type="button" class="modal-close" id="gas-import-close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="dc-form">
+          <div class="dc-field">
+            <label for="gas-import-date">数据日期</label>
+            <input type="date" id="gas-import-date" />
+          </div>
+          <div class="dc-field">
+            <label>数据文件</label>
+            <div class="gas-upload" id="gas-upload-box">点击选择要上传的数据文件</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" id="gas-import-cancel">取消</button>
+        <button type="button" class="btn btn-primary" id="gas-import-ok">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 详情弹窗：展示该文件解析出的数据 -->
+  <div class="modal-overlay" id="gas-detail-modal">
+    <div class="modal gas-detail-modal">
+      <div class="modal-header">
+        <h3>数据详情</h3>
+        <button type="button" class="modal-close" id="gas-detail-close">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="gas-detail-body"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="gas-detail-ok">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 删除确认弹窗 -->
+  <div class="modal-overlay" id="gas-confirm-modal">
+    <div class="modal confirm-modal">
+      <div class="modal-header">
+        <h3>删除确认</h3>
+        <button type="button" class="modal-close" id="gas-confirm-close">×</button>
+      </div>
+      <div class="modal-body confirm-body">
+        <p class="gas-confirm-text" id="gas-confirm-text"></p>
+      </div>
+      <div class="modal-footer confirm-footer">
+        <button type="button" class="btn" id="gas-confirm-cancel">取消</button>
+        <button type="button" class="btn btn-delete" id="gas-confirm-ok">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="gas-file" accept=".xlsx,.xls,.csv,.pdf" hidden />
+
+  <script src="js/app.js"></script>
+  <script src="js/report-config-store.js"></script>
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="js/gas-data.js"></script>
+</body>
+</html>
