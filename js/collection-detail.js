@@ -2,18 +2,23 @@
  * 数据采集明细 —— 数据采集管理 > 业务界面 > 数据采集明细
  *
  * 采集流水视角：一行 = 一条采集到的参数值。
- *   查询条件：数据时间（范围查询）+ 数据年度 + 数据月度（都可清空，留空 = 不限）
+ *   查询条件：数据时间（范围查询）+ 数据年度 + 数据月度 + 报送生产线 + 物料名称
+ *            （都可清空，留空 = 不限；物料名称是文本框，按「包含」模糊匹配）
  *   列表按钮：只有「导出」→ 导出当前列表（筛选后）的数据为 Excel
- *   列表列：采集时间(年月日时分秒) / 数据年度 / 数据月度 / 生产线类型 / 生产线名称 /
- *           物料名称 / 参数名称 / 数据值 / 参数单位
+ *   列表列：采集时间(年月日时分秒) / 数据年度 / 数据月度 / 报送生产线 /
+ *           物料名称 / 参数名称 / 数据值 / 参数单位（共 8 列）
  *
  * 数据落在 localStorage 键 DC_ROW_KEY。
  *
  * 口径说明：
- *   生产线类型 —— 用户给定清单（全厂 / 掺烧自产二次能源的化石燃料发电设施 / 转炉炼钢工序 /
+ *   报送生产线 —— 用户给定清单（全厂 / 掺烧自产二次能源的化石燃料发电设施 / 转炉炼钢工序 /
  *                 电炉炼钢工序 / 炼铁工序 / 球团工序 / 烧结工序 / 焦化工序）；
+ *                 （列名原叫「生产线类型」，按需求改成「报送生产线」）
  *   物料名称   —— 钢铁行业化石燃料标准口径（与 js/report-config-store.js 的 RC_MATERIALS 同源）；
  *   参数名称   —— 消耗量 / 产量。
+ *
+ * ⚠️ 行数据里的 lineName（生产线名称）**不再展示、不再导出**，但字段保留在行结构里 ——
+ *    演示数据还在按它区分具体产线（1#转炉 / 2#高炉…），删掉字段会让同一组合出现重复行。
  */
 
 /* ---------- 常量 ---------- */
@@ -228,7 +233,8 @@ function dcSave(rows) {
 
 /**
  * 数据时间是**范围查询**：起 / 止两端都可清空，留空 = 该端不限制。
- * 年度 / 月度下拉留空（「全部」）= 不按该条件过滤。
+ * 年度 / 月度 / 报送生产线 下拉留空（「全部」）= 不按该条件过滤。
+ * 物料名称是**文本框**，留空 = 不过滤，填了按「包含」模糊匹配。
  */
 function dcQueryStart() {
   return document.getElementById('dc-date-start').value || null;
@@ -248,18 +254,38 @@ function dcQueryMonth() {
   return v === '' || v == null ? null : Number(v);
 }
 
+/** 报送生产线（下拉，空 = 全部） */
+function dcQueryLineType() {
+  return document.getElementById('dc-linetype').value || null;
+}
+
+/**
+ * 物料名称（文本框，空 = 全部）。
+ * 去首尾空格 —— 从别处粘贴过来常带空格，不 trim 会匹配不到任何行。
+ */
+function dcQueryMaterial() {
+  const v = document.getElementById('dc-material').value;
+  return v && v.trim() ? v.trim() : null;
+}
+
 /** 查询条件的中文描述（空态文案 / 导出文件名 / 查询 toast 共用） */
 function dcQueryLabel() {
   const s = dcQueryStart();
   const e = dcQueryEnd();
   const y = dcQueryYear();
   const m = dcQueryMonth();
+  const lt = dcQueryLineType();
+  const mat = dcQueryMaterial();
   const parts = [];
   if (s || e) {
     parts.push((s ? dcIsoToText(s) : '早期') + ' 至 ' + (e ? dcIsoToText(e) : '今'));
   }
   if (y !== null) parts.push(y + '年');
   if (m !== null) parts.push(m + '月');
+  if (lt) parts.push(lt);
+  // 文案要带上「含」字说明这是模糊匹配；不额外套引号 —— 这个 label 会拼进空态文案
+  // （「…」下没有采集明细）和导出文件名，再套一层引号会变成「物料含「煤气」」这种嵌套。
+  if (mat) parts.push('物料名称含 ' + mat);
   return parts.length ? parts.join('，') : '全部数据';
 }
 
@@ -279,7 +305,9 @@ function dcTimeText(t) {
 
 /**
  * 当前查询条件下要显示的行。
- * 数据时间按采集时间的日期部分过滤；年度 / 月度按行上的 year / month。
+ * 数据时间按采集时间的日期部分过滤；年度 / 月度按行上的 year / month；
+ * 报送生产线按 lineType **精确匹配**；
+ * 物料名称按 material **包含匹配**（文本框语义，输「煤气」能一次筛出焦炉/高炉/转炉煤气）。
  * **保持存储顺序**（演示数据按时间正序播种），不额外排序。
  */
 function dcFilteredRows() {
@@ -287,12 +315,16 @@ function dcFilteredRows() {
   const e = dcQueryEnd();
   const y = dcQueryYear();
   const m = dcQueryMonth();
+  const lt = dcQueryLineType();
+  const mat = dcQueryMaterial();
   return dcRows.filter(function (r) {
     const day = r.time.slice(0, 10);
     if (s && day < s) return false;
     if (e && day > e) return false;
     if (y !== null && Number(r.year) !== y) return false;
     if (m !== null && Number(r.month) !== m) return false;
+    if (lt && r.lineType !== lt) return false;
+    if (mat && String(r.material).indexOf(mat) < 0) return false;
     return true;
   });
 }
@@ -387,7 +419,7 @@ function dcRenderTable() {
   const list = dcFilteredRows();
 
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="dc-empty">'
+    tbody.innerHTML = '<tr><td colspan="8" class="dc-empty">'
       + '「' + dcQueryLabel() + '」下没有采集明细'
       + '</td></tr>';
     dcRenderPager(0);
@@ -400,7 +432,6 @@ function dcRenderTable() {
       + '<td class="is-num">' + rcEsc(r.year) + '年</td>'
       + '<td class="is-num">' + rcEsc(r.month) + '月</td>'
       + '<td>' + rcEsc(r.lineType) + '</td>'
-      + '<td>' + rcEsc(r.lineName) + '</td>'
       + '<td>' + rcEsc(r.material) + '</td>'
       + '<td>' + rcEsc(r.param) + '</td>'
       + '<td class="dc-value">' + rcEsc(r.value) + '</td>'
@@ -419,7 +450,7 @@ function dcRenderAll() {
 
 /**
  * 导出当前列表（筛选后）的数据为 Excel。
- * 列结构与列表一致；文件名带查询条件，便于留档。
+ * 列结构与列表**完全一致**（8 列，不含已去掉的生产线名称）；文件名带查询条件，便于留档。
  */
 function dcExportXlsx() {
   const list = dcFilteredRows();
@@ -428,15 +459,15 @@ function dcExportXlsx() {
     return;
   }
 
-  const head = ['采集时间', '数据年度', '数据月度', '生产线类型', '生产线名称', '物料名称', '参数名称', '数据值', '参数单位'];
+  const head = ['采集时间', '数据年度', '数据月度', '报送生产线', '物料名称', '参数名称', '数据值', '参数单位'];
   const rows = [head];
   list.forEach(function (r) {
-    rows.push([r.time, r.year, r.month, r.lineType, r.lineName, r.material, r.param, r.value, r.unit]);
+    rows.push([r.time, r.year, r.month, r.lineType, r.material, r.param, r.value, r.unit]);
   });
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [
-    { wch: 22 }, { wch: 10 }, { wch: 10 }, { wch: 32 }, { wch: 16 },
+    { wch: 22 }, { wch: 10 }, { wch: 10 }, { wch: 32 },
     { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 10 },
   ];
 
@@ -460,17 +491,28 @@ function bindDcEvents() {
     document.getElementById('dc-date-end').value = '';
     document.getElementById('dc-year').value = '';
     document.getElementById('dc-month').value = '';
+    document.getElementById('dc-linetype').value = '';
+    document.getElementById('dc-material').value = '';
     dcPage = 1;
     dcRenderTable();
     toast('已重置为全部数据');
   });
 
-  // 改了条件自动重查（日期 / 年度 / 月度都支持），并回第 1 页
-  ['dc-date-start', 'dc-date-end', 'dc-year', 'dc-month'].forEach(function (id) {
+  // 改了条件自动重查（日期 / 年度 / 月度 / 报送生产线），并回第 1 页
+  ['dc-date-start', 'dc-date-end', 'dc-year', 'dc-month', 'dc-linetype'].forEach(function (id) {
     document.getElementById(id).addEventListener('change', function () {
       dcPage = 1;
       dcRenderTable();
     });
+  });
+
+  // 物料名称是文本框：边打边查。
+  // `isComposing` 是中文输入法拼音阶段（还没上屏），此时过滤会把半截拼音当关键词，
+  // 列表疯狂闪；等上屏后再过滤才对。
+  document.getElementById('dc-material').addEventListener('input', function (e) {
+    if (e.isComposing) return;
+    dcPage = 1;
+    dcRenderTable();
   });
 
   // 翻页：页码 / 上一页 / 下一页 / 每页条数
@@ -495,6 +537,30 @@ function bindDcEvents() {
   });
 }
 
+/**
+ * 下拉选项：取数据里**实际出现过**的值（去重），默认「全部」。
+ * 用实际值而不是写死清单，是为了让筛选项和列表永远对得上 ——
+ * 写死清单的话，数据里没有的类型/物料也会出现在下拉里，选了却是空列表，看着像坏了。
+ * （目前只有报送生产线用它；物料名称是文本框，见 initCollectionDetailPage。）
+ */
+function dcOptionsFromRows(field, labelFn) {
+  const seen = [];
+  dcRows.forEach(function (r) {
+    const v = r[field];
+    if (v != null && v !== '' && seen.indexOf(v) < 0) seen.push(v);
+  });
+  // 报送生产线按 DC_LINE_TYPES 的既定顺序排（业务口径顺序），其他按出现顺序
+  if (field === 'lineType') {
+    seen.sort(function (a, b) {
+      return DC_LINE_TYPES.indexOf(a) - DC_LINE_TYPES.indexOf(b);
+    });
+  }
+  return '<option value="">全部</option>'
+    + seen.map(function (v) {
+      return '<option value="' + rcEsc(v) + '">' + rcEsc(labelFn ? labelFn(v) : v) + '</option>';
+    }).join('');
+}
+
 /* ---------- 初始化 ---------- */
 
 function initCollectionDetailPage() {
@@ -516,6 +582,9 @@ function initCollectionDetailPage() {
     + years.map(function (y) { return '<option value="' + y + '">' + y + '年</option>'; }).join('');
   document.getElementById('dc-month').innerHTML = '<option value="">全部</option>'
     + months.map(function (m) { return '<option value="' + m + '">' + m + '月</option>'; }).join('');
+
+  // 报送生产线：取实际出现过的值；物料名称是文本框，不需要填候选
+  document.getElementById('dc-linetype').innerHTML = dcOptionsFromRows('lineType');
 
   dcPage = 1;
   dcRenderAll();

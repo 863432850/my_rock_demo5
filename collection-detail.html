@@ -10,10 +10,11 @@
   数据采集明细（数据采集管理 > 业务界面 > 数据采集明细）
 
   「采集流水」视角：一行 = 一条采集到的参数值。
-    查询条件：数据时间（范围查询）+ 数据年度 + 数据月度
+    查询条件：数据时间（范围查询）+ 数据年度 + 数据月度 + 报送生产线 + 物料名称
     列表按钮：只有「导出」→ 导出当前列表（筛选后）的数据为 Excel
-    列表列：采集时间(年月日时分秒) / 数据年度 / 数据月度 / 生产线类型 / 生产线名称 /
+    列表列：采集时间(年月日时分秒) / 数据年度 / 数据月度 / 报送生产线 /
             物料名称 / 参数名称 / 数据值 / 参数单位
+    ⚠️ 没有「生产线名称」列（按需求去掉）——数据库里仍存着这字段，只是不展示、不导出。
 
   数据落在自己的 localStorage 键里（见 js/collection-detail.js 的 DC_ROW_KEY）。
 -->
@@ -28,7 +29,11 @@
         <div class="breadcrumb" id="breadcrumb"></div>
         <div class="content-area">
 
-          <!-- 查询条件：数据时间（范围）+ 数据年度 + 数据月度，都可清空，留空 = 不限 -->
+          <!--
+            查询条件：数据时间（范围）+ 数据年度 + 数据月度 + 报送生产线 + 物料名称。
+            全部可清空，留空 = 不限；
+            年度 / 月度 / 报送生产线是下拉（第一项「全部」），物料名称是文本框（模糊匹配）。
+          -->
           <div class="filter-bar">
             <div class="filter-left">
               <div class="filter-item">
@@ -46,6 +51,14 @@
               <div class="filter-item">
                 <label for="dc-month">数据月度</label>
                 <select id="dc-month" class="year-select"></select>
+              </div>
+              <div class="filter-item">
+                <label for="dc-linetype">报送生产线</label>
+                <select id="dc-linetype" class="year-select dc-filter-select"></select>
+              </div>
+              <div class="filter-item">
+                <label for="dc-material">物料名称</label>
+                <input type="text" id="dc-material" class="dc-filter-input" placeholder="按名称模糊查询" autocomplete="off" />
               </div>
               <div class="filter-actions">
                 <button type="button" class="btn btn-primary" id="dc-search">
@@ -80,8 +93,7 @@
                     <th class="dc-col-time">采集时间</th>
                     <th class="dc-col-year">数据年度</th>
                     <th class="dc-col-month">数据月度</th>
-                    <th class="dc-col-linetype">生产线类型</th>
-                    <th class="dc-col-linename">生产线名称</th>
+                    <th class="dc-col-linetype">报送生产线</th>
                     <th class="dc-col-mat">物料名称</th>
                     <th class="dc-col-param">参数名称</th>
                     <th class="dc-col-value">数据值</th>

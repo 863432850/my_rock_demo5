@@ -14,6 +14,6 @@ var DEFAULT_REQUIREMENTS = {
   "fileName": "煤气数据管理导入表格解析逻辑.md",
   "fileType": "text/x-markdown",
   "filePath": "assets/carbon/requirements.md",
-  "savedAt": "2026-09-28 10:02:10",
+  "savedAt": "2026-09-28 15:54:13",
   "cleared": false
 };

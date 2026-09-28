@@ -378,10 +378,11 @@ function gasOpenFile(key) {
 
 /**
  * 详情弹窗：展示该天文件解析出的数据表。
- * 列（与需求样例一致）：生产线类型 / 物料 / 参数名称 / 数值 / 单位。
+ * 列：**报送生产线** / 物料 / 参数名称 / 数值 / 单位。
+ * （第 1 列原叫「生产线类型」，按需求改成「报送生产线」；弹窗里就是这 5 列，没有生产线名称列。）
  *
  * 两个展示规则：
- *   1. 「生产线类型」列**上下相邻同值合并**（rowspan）—— 同类工序只出现一次，
+ *   1. 「报送生产线」列**上下相邻同值合并**（rowspan）—— 同类工序只出现一次，
  *      下面被覆盖的行不再输出该格（不能输出空 td，否则列会错位）；
  *   2. 数值列统一**保留两位小数**（走 gasValueText）。
  *
@@ -404,12 +405,12 @@ function gasOpenDetail(key) {
     box.innerHTML = '<div class="gas-detail-empty">该文件没有解析出数据行'
       + '<br /><span class="gas-detail-empty-hint">'
       + '仅 Excel / CSV 能解析出表格，PDF 只做预览；也可能是表头与'
-      + '「生产线类型 / 物料 / 参数名称 / 数值 / 单位」对不上。</span></div>';
+      + '「报送生产线 / 物料 / 参数名称 / 数值 / 单位」对不上。</span></div>';
     openModal('gas-detail-modal');
     return;
   }
 
-  const head = ['生产线类型', '物料', '参数名称', '数值', '单位'];
+  const head = ['报送生产线', '物料', '参数名称', '数值', '单位'];
   const html = ['<table class="data-table gas-detail-table"><thead><tr>'];
   head.forEach(function (h) { html.push('<th>' + h + '</th>'); });
   html.push('</tr></thead><tbody>');

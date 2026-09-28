@@ -4906,9 +4906,6 @@ tr.row-no-target .node-toggle.empty { color: #c0c4cc; }
   font-variant-numeric: tabular-nums;
 }
 
-/* 空值占位（采集值 / 时间没采到时显示的灰杠） */
-.dc-na { color: var(--text-muted); }
-
 /* --- 煤气数据管理 列宽：四列均匀分布 --- */
 .gas-col-date,
 .gas-col-op,
@@ -4992,12 +4989,12 @@ tr.row-no-target .node-toggle.empty { color: #c0c4cc; }
   vertical-align: middle;
 }
 
-/* --- 数据采集明细 列宽 --- */
+/* --- 数据采集明细 列宽（8 列，已去掉「生产线名称」） --- */
 .dc-col-time { width: 180px; }
 .dc-col-year { width: 90px; }
 .dc-col-month { width: 90px; }
-.dc-col-linetype { width: 240px; }
-.dc-col-linename { width: 140px; }
+/* 报送生产线：值里有「掺烧自产二次能源的化石燃料发电设施」这种长名，给宽一点并允许折行 */
+.dc-col-linetype { width: 260px; }
 .dc-col-mat { width: 110px; }
 .dc-col-param { width: 96px; }
 .dc-col-value { width: 130px; }
@@ -5025,8 +5022,27 @@ tr.row-no-target .node-toggle.empty { color: #c0c4cc; }
 
 .dc-date-input:focus { border-color: var(--primary); }
 
-.dc-mode-select,
-.dc-status-select { min-width: 110px; }
+/*
+ * 报送生产线查询下拉。
+ * 候选里有「掺烧自产二次能源的化石燃料发电设施」这种超长值 ——
+ * 不给 max-width 的话 select 会被撑到 300px 宽，把查询条挤得乱换行。
+ * 这里限宽 + 省略号截断；要看全的用原生下拉展开（原生 select 展开时会显示完整文本）。
+ */
+.dc-filter-select {
+  min-width: 150px;
+  max-width: 240px;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 物料名称查询框（文本框，模糊匹配）。
+ * 用文本框不用下拉：物料名是可以「打一半」的，输「煤气」就能一次带出焦炉/高炉/转炉煤气；
+ * 下拉做不到这点（要么全选一个，要么再往下加一堆组合项）。
+ * 宽度 180px —— 恰好放得下 placeholder，又不会把查询条挤换行（全局 border-box，已含 padding）。
+ */
+.dc-filter-input {
+  width: 180px;
+}
 
 /* --- 操作列：文字链接，间距小一点 --- */
 .gas-act,
